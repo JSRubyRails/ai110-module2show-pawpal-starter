@@ -7,10 +7,14 @@
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
 
+- The initial UML design should allow users to enter owner and pet information, generate a daily schedule that factors in constraints (time availability, etc.), and allow users to add or edit tasks (walking, feeding, etc.). I created four classes; owner, pet, task, and scheduler. The owner class represents the pet owner with attributes including name and preferences (scheduling constraints or task preferences), and methods handling update preferences or retrieving owner information. The pet class represents the pet with attributes including name, species, and age, with methods handling updating pet information or retrieving pet details. The task class represents a task set by the owner, with attributes including name of the task, duration, and priority, with methods handling editing task details or checking constraints. The scheduler class manages the scheduling logic, with attributes including references to the owner, pet, and task classes, and methods including generating a daily plan based on constraints and priorities. 
+
 **b. Design changes**
 
 - Did your design change during implementation?
 - If yes, describe at least one change and why you made it.
+
+- Based on AI feedback I received, I didn't need to make any changes to my initial design since my description in 1a and the "skeletons" generated in pawpalsystem.py matches. The only minor implementation within the pawpalsystem.py is the use of dataclasses for the pet and task class to keep the code clean. 
 
 ---
 
