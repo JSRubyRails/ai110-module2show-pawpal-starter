@@ -22,6 +22,37 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## Features
+
+### Core Scheduling Algorithms
+- **Priority-based scheduling**: Greedy algorithm that schedules tasks in descending priority order
+- **Time constraint checking**: Validates tasks fit within owner's available time budget
+- **Chronological sorting**: Sort tasks by scheduled time with unscheduled tasks at the end
+- **Conflict detection**: Detects overlapping tasks using interval overlap algorithm (checks if task time ranges intersect)
+
+### Task Management
+- **Task filtering**: Filter by completion status (completed/incomplete) and pet name
+- **Recurring tasks**: Automatic daily and weekly task recurrence with next-occurrence calculation
+- **Task completion tracking**: Mark tasks complete with automatic recurring task generation
+- **Task editing**: Modify task name, duration, and priority
+
+### Smart Scheduling Features
+- **Capacity warnings**: Color-coded alerts when schedule exceeds 70% or 90% of available time
+- **Unscheduled task reporting**: Lists tasks that couldn't fit due to time constraints
+- **Schedule explanation**: Natural language explanation of why each task was included or skipped
+
+### User Interface
+- **Interactive filtering**: Toggle between completed/incomplete tasks and chronological view
+- **Visual conflict warnings**: Real-time detection and display of scheduling conflicts with timestamps
+- **Professional data tables**: Clean tabular displays with status icons and priority indicators
+- **Completion metrics**: Live dashboard showing task completion ratios and time usage percentages
+- **Time-based visualization**: Chronological task view organized by scheduled time
+
+### Data Model
+- **Owner preferences**: Configurable available time and custom preference dictionary
+- **Pet profiles**: Track name, species, age, and assigned tasks
+- **Task attributes**: Name, duration, priority, completion status, scheduled time, recurrence pattern, due date
+
 ## Getting started
 
 ### Setup
