@@ -1,5 +1,5 @@
 import pytest
-from pawpalsystem import Task, Pet
+from pawpal_system import Task, Pet
 
 def test_task_completion():
     task = Task(name="Feed", duration=10, priority=1)
