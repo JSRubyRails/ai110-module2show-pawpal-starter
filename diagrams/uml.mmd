@@ -1,15 +1,64 @@
 classDiagram
-    %% Replace the placeholders below with your actual classes, attributes, methods, and relationships.
+    %% PawPal+ class diagram
     %% Keep this file updated so it matches your final implementation.
 
-    class ClassName {
-        +type attribute
-        +method() returnType
+    class Owner {
+        +str name
+        +dict preferences
+        +list~Pet~ pets
+        +add_preference(key, value) None
+        +get_preference(key) value
+        +add_pet(pet) None
     }
 
-    class AnotherClass {
-        +type attribute
-        +method() returnType
+    class Pet {
+        +str name
+        +str species
+        +str breed
+        +list~Task~ tasks
+        +add_task(task) None
+        +remove_task(task_id) None
+        +list_tasks() list~Task~
     }
 
-    ClassName --> AnotherClass : relationship
+    class Task {
+        +str title
+        +int duration_minutes
+        +str priority
+        +str category
+        +str recurrence
+        +is_recurring() bool
+        +priority_rank() int
+        +__repr__() str
+    }
+
+    class Scheduler {
+        +int available_minutes
+        +time start_time
+        +build_plan(tasks) Plan
+        +sort_by_priority(tasks) list~Task~
+        +fits(task, remaining_time) bool
+        +resolve_conflicts(scheduled) None
+    }
+
+    class Plan {
+        +list~ScheduledTask~ entries
+        +int total_minutes
+        +list~Task~ skipped
+        +add_entry(scheduled_task) None
+        +explain() str
+        +to_table() list~dict~
+    }
+
+    class ScheduledTask {
+        +Task task
+        +time start_time
+        +time end_time
+    }
+
+    Owner "1" --> "*" Pet : owns
+    Pet "1" --> "*" Task : has
+    Scheduler ..> Task : reads
+    Scheduler ..> Plan : produces
+    Plan "1" --> "*" ScheduledTask : contains
+    ScheduledTask "1" --> "1" Task : wraps
