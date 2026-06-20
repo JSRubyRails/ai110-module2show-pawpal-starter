@@ -76,16 +76,44 @@ Scheduled 3 task(s) using 45 min, ordered by priority then placed in order:
 
 ```bash
 # Run the full test suite:
-pytest
+python -m pytest
 
-# Run with coverage:
-pytest --cov
+# Run a single file with verbose output:
+python -m pytest tests/tests_pawpal.py -v
 ```
+
+The tests in `tests/tests_pawpal.py` cover the core scheduling behaviors:
+
+- **Task completion & pet wiring** — `mark_complete()` flips a task's status, and adding a task to a `Pet` updates its task list.
+- **Sorting correctness** — `sort_by_time()` returns scheduled slots in chronological (start-time) order, and `build_plan()` places tasks high-priority first.
+- **Recurrence logic** — completing a `daily` task creates a new pending task due the following day; completing it via `Pet.complete_task()` auto-appends that follow-up, while a one-off task spawns nothing.
+- **Conflict detection** — `detect_conflicts()` flags overlapping/duplicate time slots and correctly leaves back-to-back slots (where one ends exactly as the next begins) unflagged.
+- **Budget handling** — tasks that exceed the remaining time budget are recorded in `Plan.skipped` rather than dropped silently.
 
 Sample test output:
 
 ```
-# Paste your pytest output here
+================================================================================== test session starts ==================================================================================
+platform darwin -- Python 3.11.9, pytest-8.4.1, pluggy-1.6.0 -- /Library/Frameworks/Python.framework/Versions/3.11/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/elias/ai110-module2show-pawpal-starter
+plugins: anyio-4.10.0
+collected 10 items                                                                                                                                                                      
+
+tests/tests_pawpal.py::test_task_completion_changes_status PASSED                                                                                                                 [ 10%]
+tests/tests_pawpal.py::test_adding_task_increases_pet_task_count PASSED                                                                                                           [ 20%]
+tests/tests_pawpal.py::test_sort_by_time_returns_chronological_order PASSED                                                                                                       [ 30%]
+tests/tests_pawpal.py::test_completing_daily_task_creates_task_for_following_day PASSED                                                                                           [ 40%]
+tests/tests_pawpal.py::test_completing_recurring_task_via_pet_appends_followup PASSED                                                                                             [ 50%]
+tests/tests_pawpal.py::test_completing_non_recurring_task_creates_no_followup PASSED                                                                                              [ 60%]
+tests/tests_pawpal.py::test_detect_conflicts_flags_overlapping_times PASSED                                                                                                       [ 70%]
+tests/tests_pawpal.py::test_detect_conflicts_allows_back_to_back_slots PASSED                                                                                                     [ 80%]
+tests/tests_pawpal.py::test_build_plan_skips_tasks_that_exceed_budget PASSED                                                                                                      [ 90%]
+tests/tests_pawpal.py::test_build_plan_orders_by_priority_high_first PASSED                                                                                                       [100%]
+
+==============================================================================
+10 passed in 0.01s ===============================================================================
+
 ```
 
 ## 📐 Smarter Scheduling
