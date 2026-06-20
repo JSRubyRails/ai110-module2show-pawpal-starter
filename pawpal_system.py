@@ -23,6 +23,15 @@ class Task:
     priority: str = "medium"  # "low" | "medium" | "high"
     category: str = "general"  # walk, feeding, meds, grooming, ...
     recurrence: str = "none"  # "none" | "daily" | "weekly"
+    status: str = "pending"  # "pending" | "complete"
+
+    def mark_complete(self) -> None:
+        """Mark this task as done."""
+        self.status = "complete"
+
+    def is_complete(self) -> bool:
+        """Return True if this task has been completed."""
+        return self.status == "complete"
 
     def is_recurring(self) -> bool:
         """Return True if this task repeats (daily/weekly)."""
@@ -141,6 +150,7 @@ class Scheduler:
     """Turns tasks + constraints into an ordered Plan."""
 
     def __init__(self, available_minutes: int, start_time: time = time(8, 0)) -> None:
+        """Set the daily time budget and the time of day planning starts."""
         self.available_minutes = available_minutes
         self.start_time = start_time
 
@@ -199,5 +209,6 @@ class Scheduler:
 
     @classmethod
     def _minutes_between(cls, start: time, end: time) -> int:
+        """Return the number of whole minutes between two times of day."""
         delta = cls._to_datetime(end) - cls._to_datetime(start)
         return int(delta.total_seconds() // 60)
