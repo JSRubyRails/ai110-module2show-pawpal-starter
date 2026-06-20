@@ -8,10 +8,17 @@ into an ordered daily plan.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 # Priority labels mapped to a sortable rank (higher = more important).
 PRIORITY_RANKS = {"low": 1, "medium": 2, "high": 3}
+
+# How far ahead each recurrence rule schedules the next occurrence.
+# timedelta does the calendar math (month/year/leap-year rollover) for us.
+RECURRENCE_DELTAS = {
+    "daily": timedelta(days=1),
+    "weekly": timedelta(weeks=1),  # weeks=1 is exactly 7 days
+}
 
 
 @dataclass
@@ -24,10 +31,38 @@ class Task:
     category: str = "general"  # walk, feeding, meds, grooming, ...
     recurrence: str = "none"  # "none" | "daily" | "weekly"
     status: str = "pending"  # "pending" | "complete"
+    due_date: date | None = None
 
-    def mark_complete(self) -> None:
-        """Mark this task as done."""
+    def mark_complete(self) -> Task | None:
+        """Mark this task as done; return the next occurrence if it recurs.
+
+        For "daily"/"weekly" tasks this creates a fresh pending Task due on the
+        next occurrence and returns it. Returns None for non-recurring tasks.
+        The caller is responsible for adding the returned task to its pet.
+        """
         self.status = "complete"
+        return self.next_occurrence()
+
+    def next_occurrence(self, *, from_date: date | None = None) -> Task | None:
+        """Build the next pending instance of a recurring task (None if it doesn't recur).
+
+        The next due date is the current due_date advanced by the recurrence
+        interval; if this task has no due_date, it's based on `from_date`
+        (default: today). date + timedelta handles month/year rollover for us.
+        """
+        delta = RECURRENCE_DELTAS.get(self.recurrence)
+        if delta is None:
+            return None  # "none" or an unknown recurrence: nothing to schedule
+        base = self.due_date or from_date or date.today()
+        return Task(
+            title=self.title,
+            duration_minutes=self.duration_minutes,
+            priority=self.priority,
+            category=self.category,
+            recurrence=self.recurrence,
+            status="pending",
+            due_date=base + delta,
+        )
 
     def is_complete(self) -> bool:
         """Return True if this task has been completed."""
@@ -66,6 +101,18 @@ class Pet:
         """Return this pet's tasks."""
         return self.tasks
 
+    def complete_task(self, task_id: int) -> Task | None:
+        """Mark a task complete and auto-add its next occurrence if it recurs.
+
+        Returns the newly created follow-up task, or None if it doesn't recur.
+        """
+        if not 0 <= task_id < len(self.tasks):
+            raise IndexError(f"No task at index {task_id}")
+        follow_up = self.tasks[task_id].mark_complete()
+        if follow_up is not None:
+            self.tasks.append(follow_up)
+        return follow_up
+
 
 @dataclass
 class Owner:
@@ -87,6 +134,25 @@ class Owner:
         """Register a pet under this owner."""
         self.pets.append(pet)
 
+    def find_tasks(
+        self, *, completed: bool | None = None, pet_name: str | None = None
+    ) -> list[Task]:
+        """Return tasks across all pets, optionally filtered by status and/or pet.
+
+        Pass `completed=True`/`False` to filter by completion status, and/or
+        `pet_name` to limit to one pet (case-insensitive). Omit a filter to
+        ignore it; omitting both returns every task.
+        """
+        results = []
+        for pet in self.pets:
+            if pet_name is not None and pet.name.lower() != pet_name.lower():
+                continue
+            for task in pet.tasks:
+                if completed is not None and task.is_complete() != completed:
+                    continue
+                results.append(task)
+        return results
+
 
 @dataclass
 class ScheduledTask:
@@ -95,6 +161,7 @@ class ScheduledTask:
     task: Task
     start_time: time
     end_time: time
+    pet_name: str = ""  # which pet this slot belongs to (for conflict messages)
 
 
 @dataclass
@@ -154,8 +221,12 @@ class Scheduler:
         self.available_minutes = available_minutes
         self.start_time = start_time
 
-    def build_plan(self, tasks: list[Task]) -> Plan:
-        """Sort by priority, then greedily place tasks that fit the time budget."""
+    def build_plan(self, tasks: list[Task], pet_name: str = "") -> Plan:
+        """Sort by priority, then greedily place tasks that fit the time budget.
+
+        Pass `pet_name` to tag each slot with its owner so conflict warnings can
+        say which pet a task belongs to.
+        """
         plan = Plan()
         remaining = self.available_minutes
         cursor = self._to_datetime(self.start_time)
@@ -168,6 +239,7 @@ class Scheduler:
                         task=task,
                         start_time=cursor.time(),
                         end_time=end.time(),
+                        pet_name=pet_name,
                     )
                 )
                 cursor = end
@@ -184,9 +256,39 @@ class Scheduler:
             key=lambda t: (-t.priority_rank(), t.duration_minutes),
         )
 
+    def sort_by_time(self, scheduled: list[ScheduledTask]) -> list[ScheduledTask]:
+        """Order scheduled tasks chronologically by start time.
+
+        Useful before resolve_conflicts, which assumes start-time order.
+        """
+        return sorted(scheduled, key=lambda st: st.start_time)
+
     def fits(self, task: Task, remaining_time: int) -> bool:
         """Return True if the task fits in the remaining time budget."""
         return task.duration_minutes <= remaining_time
+
+    def detect_conflicts(self, scheduled: list[ScheduledTask]) -> list[str]:
+        """Return a warning string for each overlapping pair of time slots.
+
+        Lightweight, non-destructive conflict detection: it never mutates the
+        schedule and never raises. It compares every pair of entries and flags
+        any whose time ranges overlap (two tasks share part of the same slot),
+        whether they belong to the same pet or different pets. Returns an empty
+        list when there are no conflicts.
+        """
+        warnings = []
+        for i in range(len(scheduled)):
+            for j in range(i + 1, len(scheduled)):
+                a, b = scheduled[i], scheduled[j]
+                # Half-open overlap test: a starts before b ends AND b starts before a ends.
+                if a.start_time < b.end_time and b.start_time < a.end_time:
+                    warnings.append(
+                        f"WARNING: {self._label(a)} "
+                        f"({a.start_time:%H:%M}-{a.end_time:%H:%M}) overlaps "
+                        f"{self._label(b)} "
+                        f"({b.start_time:%H:%M}-{b.end_time:%H:%M})"
+                    )
+        return warnings
 
     def resolve_conflicts(self, scheduled: list[ScheduledTask]) -> None:
         """Push overlapping slots later so no two tasks share a time range.
@@ -201,6 +303,13 @@ class Scheduler:
                 new_end = new_start + timedelta(minutes=duration)
                 curr.start_time = new_start.time()
                 curr.end_time = new_end.time()
+
+    @staticmethod
+    def _label(entry: ScheduledTask) -> str:
+        """Format a slot as 'Pet: Task', or just the task title if no pet is set."""
+        if entry.pet_name:
+            return f"{entry.pet_name}: '{entry.task.title}'"
+        return f"'{entry.task.title}'"
 
     @staticmethod
     def _to_datetime(t: time) -> datetime:

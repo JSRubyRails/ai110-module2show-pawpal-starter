@@ -60,13 +60,46 @@ Yes, two changes emerged once I moved from the diagram to code:
 
 **a. Constraints and priorities**
 
-- What constraints does your scheduler consider (for example: time, priority, preferences)?
-- How did you decide which constraints mattered most?
+My scheduler considers four constraints, which come together in `build_plan`:
+
+- **Time budget** (`available_minutes`) — the total minutes available in the day. This
+  is a *hard* constraint: a task is only placed if `fits()` confirms it still fits in
+  the remaining budget, otherwise it goes to the `Plan`'s `skipped` list.
+- **Priority** (`high`/`medium`/`low`) — the main ordering signal. `sort_by_priority`
+  ranks high-priority tasks first via `priority_rank()`.
+- **Duration** (`duration_minutes`) — used as a tiebreaker: among tasks of equal
+  priority, shorter ones are placed first so more tasks fit.
+- **Start time** (`start_time`) — when the day begins; the placement cursor starts here
+  and advances as tasks are laid down. This and `available_minutes` are sourced from the
+  Owner's `preferences`, so user preferences feed the constraints rather than being a
+  separate one.
+
+I decided **time is the most important** because it's the only constraint that can
+*fail* — you physically cannot fit more than the budget allows, so it determines what
+gets dropped. **Priority is the next most important** because it decides *which* tasks
+win that limited time: when not everything fits, the high-priority care (meds, feeding)
+should be the stuff that survives. Duration is deliberately demoted to a tiebreaker — it
+only matters *within* a priority level — so a short low-priority task can never jump
+ahead of an important one just because it's small.
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+The main tradeoff is that the scheduler is **greedy (priority-first), not optimal.** It
+sorts by priority and places tasks in that order until the budget runs out — it does
+*not* search for the combination of tasks that maximizes how many fit (the knapsack
+problem). So it can leave the day "sub-optimal" by raw count: a single high-priority
+30-minute task can consume budget that two shorter, slightly-lower-priority tasks would
+have filled more completely.
+
+That tradeoff is reasonable for pet care because **importance matters more than count.**
+Getting medication and feeding done is worth more than squeezing in the largest possible
+number of tasks, and the greedy approach guarantees the most important tasks are never
+sacrificed to fit trivial ones. It's also **fast and explainable** — the order is just
+"priority, then shortest first," which is exactly what `Plan.explain()` reports back to
+the user. A true optimizer would be harder to predict and harder to justify to an owner
+who just wants to know *why* a task was skipped. For a daily list of a handful of tasks,
+the optimal solution and the greedy one usually coincide anyway, so the extra complexity
+wouldn't earn its keep.
 
 ---
 
