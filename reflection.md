@@ -4,13 +4,55 @@
 
 **a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
+Based on the PawPal+ scenario, the three core actions a user should perform are:
+
+1. Enter owner + pet info — set up who they are and which pet they're planning care for (name, species/breed, etc.).
+
+2. Add/edit care tasks — input the tasks to be scheduled (walks, feeding, meds, grooming, enrichment) with at least a duration and priority for each.
+
+3. Generate the daily plan — run the scheduler to produce a daily schedule based on the constraints (available time, priorities) and view the plan, ideally with an explanation of the reasoning.
+
+
+Based on these three core actions, I created the following classes:
+
+- **Owner** — the person planning care. Holds `name`, a `preferences` dict, and a
+  list of `pets`. Responsible for managing pets and storing planning preferences
+  (`add_pet`, `add_preference`, `get_preference`).
+- **Pet** — the animal being cared for. Holds `name`, `species`, `breed`, and a list
+  of `tasks`. Responsible for managing its own care tasks (`add_task`,
+  `remove_task`, `list_tasks`).
+- **Task** — a single care action (walk, feeding, meds, grooming, etc.). Holds
+  `title`, `duration_minutes`, `priority`, `category`, and `recurrence`. Responsible
+  for facts about itself (`is_recurring`, `priority_rank`).
+- **Scheduler** — the engine. Holds the constraints (`available_minutes`,
+  `start_time`) and owns the algorithm: sort tasks, filter to the time budget, place
+  them, and resolve conflicts (`build_plan`, `sort_by_priority`, `fits`,
+  `resolve_conflicts`).
+- **Plan** — the result a user reads. Holds the scheduled `entries`, `total_minutes`,
+  and any `skipped` tasks, and can explain itself and render for display
+  (`explain`, `to_table`).
+
+The key responsibility split: `Task` holds data + facts about itself, `Scheduler`
+holds the *algorithm*, and `Plan` holds the *output* — so each can be built and
+tested independently.
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+Yes, two changes emerged once I moved from the diagram to code:
+
+1. **Added a `ScheduledTask` class.** My first sketch had the `Scheduler` place
+   tasks directly into the `Plan`, but a `Task` only knows its duration, not *when*
+   it happens. I introduced `ScheduledTask` to wrap a `Task` with a concrete
+   `start_time`/`end_time`, so the `Plan` stores placed slots rather than mutating
+   `Task` objects with scheduling-specific fields. This keeps `Task` reusable and
+   makes conflict detection (overlapping slots) much cleaner.
+
+2. **Used dataclasses for the data objects.** I made `Task`, `Pet`, `Owner`,
+   `ScheduledTask`, and `Plan` Python `@dataclass`es to cut boilerplate, while
+   keeping `Scheduler` a plain class because it is behavior, not data. A direct
+   consequence: my UML originally listed a `__repr__()` method on `Task`, but
+   dataclasses generate that automatically, so I dropped it from the diagram to keep
+   it matching the real implementation.
 
 ---
 
