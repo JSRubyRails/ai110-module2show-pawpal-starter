@@ -70,11 +70,16 @@ if st.button("Add task"):
     pet.add_task(Task(title=task_title, duration_minutes=int(duration), priority=priority))
 
 if pet.list_tasks():
-    st.write("Current tasks:")
+    st.write("Current tasks (sorted by priority):")
+    # Preview the order the scheduler will consider tasks in: high priority
+    # first, shorter tasks breaking ties. Uses the same Scheduler logic as
+    # the real plan so the display matches what gets scheduled. Sorting is
+    # independent of the time budget, so the value here is just a placeholder.
+    preview = Scheduler(available_minutes=1440).sort_by_priority(pet.list_tasks())
     st.table(
         [
             {"title": t.title, "duration_minutes": t.duration_minutes, "priority": t.priority}
-            for t in pet.list_tasks()
+            for t in preview
         ]
     )
 else:
@@ -92,13 +97,31 @@ if st.button("Generate schedule"):
         st.warning("Add at least one task before generating a schedule.")
     else:
         scheduler = Scheduler(available_minutes=int(available_minutes))
-        plan: Plan = scheduler.build_plan(pet.list_tasks())
+        plan: Plan = scheduler.build_plan(pet.list_tasks(), pet_name=pet.name)
+
+        # Order the slots chronologically before display/conflict checks so the
+        # table reads top-to-bottom by start time.
+        plan.entries = scheduler.sort_by_time(plan.entries)
 
         st.markdown(f"### Today's Schedule for {pet.name}")
-        if plan.to_table():
+        if plan.entries:
+            st.success(
+                f"Scheduled {len(plan.entries)} task(s) using "
+                f"{plan.total_minutes} of {int(available_minutes)} available minutes."
+            )
             st.table(plan.to_table())
+        else:
+            st.warning("No tasks could be scheduled within the available time.")
+
+        # Surface any overlapping time slots using the Scheduler's own
+        # conflict detection.
+        conflicts = scheduler.detect_conflicts(plan.entries)
+        for warning in conflicts:
+            st.warning(warning)
+
         st.markdown("**Why this plan?**")
         st.text(plan.explain())
+
         if plan.skipped:
             st.warning(
                 "Skipped (not enough time): "

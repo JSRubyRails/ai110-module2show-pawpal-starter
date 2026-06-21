@@ -22,6 +22,19 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## ✨ Features
+
+The scheduling engine in `pawpal_system.py` implements these algorithms:
+
+- **Priority-first task ordering** — tasks are sorted high → low priority, with shorter tasks breaking ties so more fit in the day (`Scheduler.sort_by_priority`).
+- **Greedy time-budget packing** — tasks are placed in priority order only while they fit the remaining minutes; the rest are recorded in `Plan.skipped` rather than dropped silently (`Scheduler.build_plan`, `Scheduler.fits`).
+- **Chronological sorting** — placed slots are reordered by start time for display and as a precondition for conflict resolution (`Scheduler.sort_by_time`).
+- **Conflict warnings** — every pair of slots is checked for overlap and flagged with a per-pet warning string, non-destructively (`Scheduler.detect_conflicts`).
+- **Conflict resolution** — overlapping slots are pushed later in place so no two share a time range (`Scheduler.resolve_conflicts`).
+- **Daily & weekly recurrence** — completing a recurring task auto-generates its next occurrence, with `timedelta` handling month/year/leap-year rollover (`Task.next_occurrence`, `Task.mark_complete`, `Pet.complete_task`).
+- **Task filtering** — query tasks across all pets by completion status and/or pet name, case-insensitively (`Owner.find_tasks`).
+- **Plan explanations** — the generated plan summarizes what was scheduled, in what order, and what was skipped and why (`Plan.explain`).
+
 ## Getting started
 
 ### Setup
@@ -176,12 +189,100 @@ Recurrence is driven by a small `RECURRENCE_DELTAS` map and `datetime.timedelta`
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+### Main UI features
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+The Streamlit app (`app.py`) is organized top to bottom around one care plan:
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+- **Owner & Pet** — enter an owner name, a pet name, and pick a species. The pet object persists across reruns and is rebuilt automatically when you change the name.
+- **Tasks** — add tasks with a title, duration (minutes), and priority (low/medium/high). Existing tasks are shown in a live table **sorted by priority**, previewing the order the scheduler will use.
+- **Build Schedule** — set the time available for the day (minutes) and generate a plan with one click.
+- **Results** — the generated plan is shown as a table, a success banner reports how many tasks fit and the minutes used, conflict warnings appear for any overlapping slots, a plain-text explanation describes the reasoning, and any tasks that didn't fit are listed as skipped.
+
+### Example workflow
+
+1. **Add a pet** — type an owner name (e.g. *Jordan*) and a pet name (e.g. *Mochi*), and choose a species.
+2. **Add tasks** — add "Morning walk" (30 min, high), "Breakfast" (10 min, high), and "Brush coat" (20 min, low). The task table immediately re-sorts so the high-priority tasks rise to the top.
+3. **Set the time budget** — enter the minutes available today (e.g. 120).
+4. **Generate the schedule** — click **Generate schedule** to build the plan.
+5. **View today's schedule** — read the timed table, the success banner, the "Why this plan?" explanation, and any conflict or skipped-task warnings.
+
+### Key Scheduler behaviors shown
+
+- **Priority sorting** — `sort_by_priority` places high-priority tasks first, using shorter duration as a tiebreaker (Breakfast before Morning walk, Brush coat last).
+- **Greedy time-budget packing** — `build_plan` only schedules tasks that fit the remaining minutes; the rest land in `Plan.skipped`.
+- **Chronological sorting** — `sort_by_time` reorders pooled slots by start time (useful when multiple pets share one timeline).
+- **Conflict warnings** — `detect_conflicts` flags overlapping slots non-destructively, labeling each side with its pet.
+- **Plan explanation** — `Plan.explain` summarizes what was scheduled, in what order, and what was skipped.
+
+### Sample CLI output
+
+The command-line demo (`python main.py`) exercises the same engine across two pets and prints sorting, conflict detection, and filtering:
+
+```
+====================================================
+Today's Schedule
+====================================================
+
+Mochi (Shiba Inu dog)
+----------------------------------------------------
+Scheduled 3 task(s) using 60 min, ordered by priority then placed in order:
+08:00 — Breakfast (10 min) [priority: high]
+08:10 — Morning walk (30 min) [priority: high]
+08:40 — Brush coat (20 min) [priority: low]
+
+Luna (Tabby cat)
+----------------------------------------------------
+Scheduled 3 task(s) using 45 min, ordered by priority then placed in order:
+08:00 — Refill food + water (5 min) [priority: high]
+08:05 — Clean litter box (15 min) [priority: medium]
+08:20 — Play / enrichment (25 min) [priority: medium]
+
+====================================================
+Combined entries BEFORE sort_by_time (pooled per pet)
+====================================================
+  08:00-08:10  Breakfast
+  08:10-08:40  Morning walk
+  08:40-09:00  Brush coat
+  08:00-08:05  Refill food + water
+  08:05-08:20  Clean litter box
+  08:20-08:45  Play / enrichment
+
+====================================================
+Combined entries AFTER sort_by_time (chronological)
+====================================================
+  08:00-08:10  Breakfast
+  08:00-08:05  Refill food + water
+  08:05-08:20  Clean litter box
+  08:10-08:40  Morning walk
+  08:20-08:45  Play / enrichment
+  08:40-09:00  Brush coat
+
+====================================================
+Conflict detection across the combined timeline
+====================================================
+Found 5 conflict(s):
+  WARNING: Mochi: 'Breakfast' (08:00-08:10) overlaps Luna: 'Refill food + water' (08:00-08:05)
+  WARNING: Mochi: 'Breakfast' (08:00-08:10) overlaps Luna: 'Clean litter box' (08:05-08:20)
+  WARNING: Mochi: 'Morning walk' (08:10-08:40) overlaps Luna: 'Clean litter box' (08:05-08:20)
+  WARNING: Mochi: 'Morning walk' (08:10-08:40) overlaps Luna: 'Play / enrichment' (08:20-08:45)
+  WARNING: Mochi: 'Brush coat' (08:40-09:00) overlaps Luna: 'Play / enrichment' (08:20-08:45)
+
+====================================================
+Filtering with Owner.find_tasks
+====================================================
+
+Pending tasks (4):
+  - Brush coat [pending]
+  - Morning walk [pending]
+  - Play / enrichment [pending]
+  - Clean litter box [pending]
+
+Completed tasks (2):
+  - Breakfast [complete]
+  - Refill food + water [complete]
+
+All of Mochi's tasks (3):
+  - Brush coat [pending]
+  - Morning walk [pending]
+  - Breakfast [complete]
+```

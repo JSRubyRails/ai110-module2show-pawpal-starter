@@ -9,6 +9,7 @@ classDiagram
         +add_preference(key, value) None
         +get_preference(key) value
         +add_pet(pet) None
+        +find_tasks(completed, pet_name) list~Task~
     }
 
     class Pet {
@@ -19,6 +20,7 @@ classDiagram
         +add_task(task) None
         +remove_task(task_id) None
         +list_tasks() list~Task~
+        +complete_task(task_id) Task
     }
 
     class Task {
@@ -27,6 +29,11 @@ classDiagram
         +str priority
         +str category
         +str recurrence
+        +str status
+        +date due_date
+        +mark_complete() Task
+        +next_occurrence(from_date) Task
+        +is_complete() bool
         +is_recurring() bool
         +priority_rank() int
         +__repr__() str
@@ -35,9 +42,11 @@ classDiagram
     class Scheduler {
         +int available_minutes
         +time start_time
-        +build_plan(tasks) Plan
+        +build_plan(tasks, pet_name) Plan
         +sort_by_priority(tasks) list~Task~
+        +sort_by_time(scheduled) list~ScheduledTask~
         +fits(task, remaining_time) bool
+        +detect_conflicts(scheduled) list~str~
         +resolve_conflicts(scheduled) None
     }
 
@@ -54,6 +63,7 @@ classDiagram
         +Task task
         +time start_time
         +time end_time
+        +str pet_name
     }
 
     Owner "1" --> "*" Pet : owns
